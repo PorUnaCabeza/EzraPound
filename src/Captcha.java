@@ -44,14 +44,15 @@ public class Captcha {
             System.out.println("获得验证码cookie失败");
             return;
         }
+        File file = new File("cabeza.gif");
         try {
-            FileOutputStream out = (new FileOutputStream(new java.io.File("cabeza.gif")));
+            FileOutputStream out = (new FileOutputStream(file));
             out.write(rs.bodyAsBytes());
         } catch (IOException e) {
             e.printStackTrace();
         }
         captchaCookies.putAll(rs.cookies());
-        System.out.println("验证码已保存");
+        System.out.println("验证码已保存" + ",路径为:" + file.getAbsolutePath());
     }
 
     public void getXsrf() {
