@@ -26,9 +26,14 @@ import java.util.*;
 public class Captcha {
     private String userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0";
     private Date date = new Date();
+    StringBuffer emailContent=new StringBuffer();
+    private boolean recentNewsTimeInit=false;
 
     private Map<String,String> captchaCookies =new HashMap<>();
     private Map<String,String> loginCookies=new HashMap<>();
+    private Map<String,String> updateNews=new HashMap<>();
+
+    private String recentNewsTime="0";
     private String _xsrf;
     private Connection.Response rs;
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
@@ -38,13 +43,14 @@ public class Captcha {
 
     private boolean isLogin = false;
     public static void main(String[] args) throws IOException{
-        String userHomeUrl = "https://www.zhihu.com/people/lin-shen-shi-jian-lu";
+        String userHomeUrl = "https://www.zhihu.com/people/douya0808";
         Captcha c=new Captcha();
+        c.getXsrf();
         while (true) {
-           // c.watchNews(userHomeUrl);
-            c.traverseNews(userHomeUrl);
+            c.watchNews(userHomeUrl);
+           // c.traverseNews(userHomeUrl);
             try {
-                Thread.sleep(2000);
+                Thread.sleep(20000);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -196,7 +202,6 @@ public class Captcha {
         if(!elmts.isEmpty()){
             log.info("登录成功！" + "登录用户为:" + elmts.select(".name").text());
             isLogin = true;
-            getXsrf();
             return true;
         }
         isLogin = false;
@@ -213,28 +218,40 @@ public class Captcha {
         con = Jsoup.connect(url).timeout(3000);//获取连接
         con.header("User-Agent", userAgent);//配置模拟浏览器
         con.cookies(loginCookies);
+        con.cookie("_xsrf",_xsrf);
         try {
             rs = con.execute();
         } catch (Exception e) {
             log.info("拉取动态失败");
             e.printStackTrace();
+            return;
         }
         Document doc = Jsoup.parse(rs.body());
+        doc.setBaseUri("https://www.zhihu.com");
         checkLogin(doc);
+        updateNews.clear();
         Elements elmts = doc.select(".zm-profile-section-item.zm-item.clearfix");
         for (Element elmt : elmts) {
-            date.setTime((Long.parseLong(elmt.attr("data-time")) * 1000));
-            log.info(sdf.format(date));
-            log.info(elmt.select(".zm-profile-activity-page-item-main").text() + "www.zhihu.com" + elmt.select(".question_link").attr("href"));
-            log.info(elmt.elementSiblingIndex());
+            if(elmt.attr("data-time").compareTo(recentNewsTime)>0&&recentNewsTimeInit){
+                updateNews.put(elmt.attr("data-time"),elmt.select(".zm-profile-activity-page-item-main").text() + "   " + elmt.select(".zm-profile-activity-page-item-main > a").last().attr("abs:href"));
+            }
+            //date.setTime((Long.parseLong(elmt.attr("data-time")) * 1000));
+            //log.info(sdf.format(date));
+            //log.info(elmt.select(".zm-profile-activity-page-item-main").text() + "   " + elmt.select(".zm-profile-activity-page-item-main > a").last().attr("abs:href"));
         }
+        if(updateNews.isEmpty())
+            log.info("无新动态");
+        else{
+            log.info("新动态: "+updateNews);
+            sendMail(updateNews);
+        }
+        recentNewsTime=elmts.get(0).attr("data-time");
+        recentNewsTimeInit=true;
         log.info("*************" + sdf.format(System.currentTimeMillis()) + "*************");
     }
     public void traverseNews(String url){
         Document doc;
         Elements elmts;
-        String start=null;
-        int lastIndex=0;
         if (!isLogin) {
             if (!loginBySavedCookies()) {
                 log.info("网络貌似不太好");
@@ -282,7 +299,6 @@ public class Captcha {
                     log.info(elmt.select(".zm-profile-activity-page-item-main").text() + "www.zhihu.com" + elmt.select(".question_link").attr("href"));
                 }
                 traverseStartSign = elmt.attr("data-time");
-                lastIndex=elmt.elementSiblingIndex();
             }
             con = Jsoup.connect(url + "/activities").method(Connection.Method.POST).timeout(3000).ignoreContentType(true);//获取连接
             con.header("User-Agent", userAgent);//配置模拟浏览器
@@ -304,7 +320,7 @@ public class Captcha {
 
     }
 
-    public void sendMail(String title, String content) {
+    public void sendMail(Map<String,String> news) {
         Properties props = new Properties();
         props.setProperty("mail.smtp.auth", "true");
         props.setProperty("mail.smtp.host", "smtp.163.com");
@@ -319,10 +335,17 @@ public class Captcha {
             message.setFrom(new InternetAddress("makpia@163.com"));
             //收件人
             message.setRecipient(Message.RecipientType.TO, new InternetAddress("makpia@163.com"));
-            message.setSubject(title);
-            message.setContent(content, "text/html;charset=UTF-8");
+            message.setSubject(sdf.format(System.currentTimeMillis())+"有新动态");
+            emailContent.setLength(0);
+            for (Map.Entry<String, String> entry : news.entrySet()) {
+                date.setTime(Long.parseLong(entry.getKey()) * 1000);
+                emailContent.append(sdf.format(date)+entry.getValue()+"<br>");
+            }
+            message.setContent(emailContent.toString(), "text/html;charset=UTF-8");
             ts.sendMessage(message, message.getAllRecipients());
+            log.info("邮件发送成功!");
         } catch (Exception e) {
+            log.info("发送邮件失败,请检查邮件配置");
             e.printStackTrace();
         } finally {
             try {
