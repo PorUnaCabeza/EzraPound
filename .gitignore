@@ -1,0 +1,4 @@
+# Created by .gitignore support plugin (hsz.mobi)
+*.log
+src/Captcha.java
+src/DownloadPic.java

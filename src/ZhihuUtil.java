@@ -23,43 +23,54 @@ import java.util.*;
  * Petals on a wet, black bough.
  *         --------In a Station of the Metro
  */
-public class Captcha {
-    private String userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0";
+public class ZhihuUtil {
+    public static final String userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0";
+    private static Logger log=Logger.getLogger(Captcha.class);
     private Date date = new Date();
-    StringBuffer emailContent=new StringBuffer();
-    private boolean recentNewsTimeInit=false;
 
     private Map<String,String> captchaCookies =new HashMap<>();
-    private Map<String,String> loginCookies=new HashMap<>();
+    private Map<String,String> loginCookies =new HashMap<>();
     private Map<String,String> updateNews=new HashMap<>();
 
-    private String recentNewsTime="0";
+    private boolean recentNewsTimeInit=false;
+    private boolean isLogin = false;
+    private boolean getXsrf=false;
+
+    private Scanner sc=new Scanner(System.in);
+
     private String _xsrf;
+    private String recentNewsTime="0";
+    private StringBuffer emailContent=new StringBuffer();
+    private Connection con;
     private Connection.Response rs;
+    private Document doc;
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
     private String traverseStartSign = "";
-    private static Logger log=Logger.getLogger(Captcha.class);
-    private Connection con;
+    private int getXsrfTimes=0;
+    private int loginBySavedCookiesTimes=0;
 
-    private boolean isLogin = false;
-    public static void main(String[] args) throws IOException{
-        String userHomeUrl = "https://www.zhihu.com/people/excited-vczh";
-        Captcha c=new Captcha();
-        c.getXsrf();
-        while (true) {
-            c.watchNews(userHomeUrl);
-           // c.traverseNews(userHomeUrl);
-            try {
-                Thread.sleep(20000);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+    public boolean getXsrf() {
+        con = Jsoup.connect("http://www.zhihu.com");
+        con.header("User-Agent", userAgent);
+        try {
+            rs = con.execute();
+            getXsrfTimes++;
+        } catch (Exception e) {
+            log.info("获得Xsrf失败");
+            if(getXsrfTimes<10)
+                return getXsrf();
+            getXsrf=false;
+            return false;
         }
+        Document doc=Jsoup.parse(rs.body());
+        _xsrf=doc.select(".view.view-signin [name=\"_xsrf\"]").attr("value");
+        log.info("已获得xsrf");
+        getXsrf=true;
+        return true;
     }
 
     public void getCaptchaCookies() {
         captchaCookies.clear();
-        log.info(System.currentTimeMillis());
         con = Jsoup.connect("https://www.zhihu.com/captcha.gif?r=" + System.currentTimeMillis()).ignoreContentType(true);//获取连接
         con.header("User-Agent", userAgent);
         try {
@@ -79,23 +90,8 @@ public class Captcha {
         log.info("验证码已保存" + ",路径为:" + file.getAbsolutePath());
     }
 
-    public void getXsrf() {
-        con = Jsoup.connect("http://www.zhihu.com");
-        con.header("User-Agent", userAgent);
-        try {
-            rs = con.execute();
-        } catch (Exception e) {
-            log.info("获得Xsrf失败");
-            return;
-        }
-        Document doc=Jsoup.parse(rs.body());
-        _xsrf=doc.select(".view.view-signin [name=\"_xsrf\"]").attr("value");
-        log.info("已获得xsrf");
-    }
-
-    public void getLoginCookies() {
+    public boolean getLoginCookies() {
         loginCookies.clear();
-        Scanner sc=new Scanner(System.in);
         getXsrf();
         getCaptchaCookies();
         log.info("请输入帐号");
@@ -114,9 +110,10 @@ public class Captcha {
                     .data("captcha", captcha).cookies(captchaCookies).execute();
         } catch (Exception e) {
             log.info("获得loginCookies失败");
-            return;
+            return getLoginCookies();
         }
         loginCookies.putAll(rs.cookies());
+        return true;
     }
 
     public void saveCookies(String fileName, Map<String, String> cookies) {
@@ -156,10 +153,28 @@ public class Captcha {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        log.info(loginCookies);
     }
 
-    public boolean login() {
+    public boolean loginBySavedCookies() {
+        if(!getXsrf)
+            getXsrf();
+        readCookies("zhihu_cookies.txt");
+        con = Jsoup.connect("https://www.zhihu.com");//获取连接
+        con.header("User-Agent", userAgent);//配置模拟浏览器
+        con.cookies(loginCookies);
+        try {
+            rs = con.execute();
+            loginBySavedCookiesTimes++;
+        } catch (Exception e) {
+            log.info("读取cookie登录失败");
+            if(loginBySavedCookiesTimes<5)
+                return loginBySavedCookies();
+            return false;
+        }
+        return checkLogin(Jsoup.parse(rs.body()));
+    }
+
+    public boolean loginByEmailAndPwd() {
         getLoginCookies();
         con = Jsoup.connect("https://www.zhihu.com");//获取连接
         con.header("User-Agent", userAgent);//配置模拟浏览器
@@ -177,26 +192,20 @@ public class Captcha {
         }
         log.info("登录失败");
         return false;
-
     }
 
-    public boolean loginBySavedCookies() {
-        readCookies("zhihu_cookies.txt");
-        con = Jsoup.connect("https://www.zhihu.com");//获取连接
-        con.header("User-Agent", userAgent);//配置模拟浏览器
-        con.cookies(loginCookies);
-        try {
-            rs = con.execute();
-        } catch (Exception e) {
-            log.info("读取Cookie登录失败");
-            return false;
-        }
-        Document doc = Jsoup.parse(rs.body());
-        if (checkLogin(doc))
+    public boolean login(){
+        log.info(isLogin);
+        if(isLogin){
             return true;
-        log.info("读取cookie登录失败,下面手动登录:");
-        return login();
+        }
+        if(!loginBySavedCookies()){
+            log.info("读取cookie登录失败,下面手动登录");
+            return loginByEmailAndPwd();
+        }
+        return true;
     }
+
     public boolean checkLogin(Document doc) {
         Elements elmts=doc.select(".zu-top-nav-userinfo");
         if(!elmts.isEmpty()){
@@ -204,17 +213,13 @@ public class Captcha {
             isLogin = true;
             return true;
         }
+        log.info("no again");
         isLogin = false;
-        return false;
+        return login();
     }
 
     public void watchNews(String url) {
-        if (!isLogin) {
-            if (!loginBySavedCookies()) {
-                log.info("网络貌似不太好");
-                return;
-            }
-        }
+        login();
         con = Jsoup.connect(url).timeout(30000);//获取连接
         con.header("User-Agent", userAgent);//配置模拟浏览器
         con.cookies(loginCookies);
@@ -226,18 +231,15 @@ public class Captcha {
             e.printStackTrace();
             return;
         }
-        Document doc = Jsoup.parse(rs.body());
+        doc = Jsoup.parse(rs.body());
         doc.setBaseUri("https://www.zhihu.com");
-        checkLogin(doc);
         updateNews.clear();
         Elements elmts = doc.select(".zm-profile-section-item.zm-item.clearfix");
         for (Element elmt : elmts) {
             if(elmt.attr("data-time").compareTo(recentNewsTime)>0&&recentNewsTimeInit){
-                updateNews.put(elmt.attr("data-time"),elmt.select(".zm-profile-activity-page-item-main").text() + "   " + elmt.select(".zm-profile-activity-page-item-main > a").last().attr("abs:href"));
+                updateNews.put(elmt.attr("data-time"),elmt.select(".zm-profile-activity-page-item-main").text()
+                        + "   " + elmt.select(".zm-profile-activity-page-item-main > a").last().attr("abs:href"));
             }
-            //date.setTime((Long.parseLong(elmt.attr("data-time")) * 1000));
-            //log.info(sdf.format(date));
-            //log.info(elmt.select(".zm-profile-activity-page-item-main").text() + "   " + elmt.select(".zm-profile-activity-page-item-main > a").last().attr("abs:href"));
         }
         if(updateNews.isEmpty())
             log.info("无新动态");
@@ -249,19 +251,14 @@ public class Captcha {
         recentNewsTimeInit=true;
         log.info("*************" + sdf.format(System.currentTimeMillis()) + "*************");
     }
+
     public void traverseNews(String url){
-        Document doc;
         Elements elmts;
-        if (!isLogin) {
-            if (!loginBySavedCookies()) {
-                log.info("网络貌似不太好");
-                return;
-            }
-        }
+        login();
         if (traverseStartSign.isEmpty()) {
-            con = Jsoup.connect(url).timeout(3000);//获取连接
+            con = Jsoup.connect(url).timeout(30000);//获取连接
             con.header("User-Agent", userAgent);//配置模拟浏览器
-            //con.cookies(loginCookies);       //注:对于有些用户(如vczh),携带登录cookie爬取会失败，原因不明
+            con.cookies(loginCookies);
             try {
                 rs = con.execute();
             } catch (Exception e) {
@@ -270,7 +267,6 @@ public class Captcha {
                 return;
             }
             doc = Jsoup.parse(rs.body());
-            checkLogin(doc);
         } else {
             date.setTime((Long.parseLong(traverseStartSign) * 1000));
             log.info(sdf.format(date));
@@ -280,6 +276,7 @@ public class Captcha {
             con.data("start", traverseStartSign).data("_xsrf", _xsrf);
             con.cookies(loginCookies);
             con.cookie("_xsrf", _xsrf);
+            con.timeout(30000);
             try {
                 rs = con.execute();
             } catch (Exception e) {
@@ -305,6 +302,7 @@ public class Captcha {
             con.data("start", traverseStartSign).data("_xsrf", _xsrf);
             con.cookies(loginCookies);
             con.cookie("_xsrf", _xsrf);
+            con.timeout(30000);
             try {
                 rs = con.execute();
             } catch (Exception e) {
@@ -317,19 +315,46 @@ public class Captcha {
         }
         log.info("拉取完毕");
         System.exit(0);
+    }
 
+    public void startWatch(String url,long millis){
+        while(true){
+            watchNews(url);
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    public void startTraverse(String url){
+        while(true){
+            traverseNews(url);
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public void sendMail(Map<String,String> news) {
-        Properties props = new Properties();
-        props.setProperty("mail.smtp.auth", "true");
-        props.setProperty("mail.smtp.host", "smtp.163.com");
-        props.setProperty("mail.transport.protocol", "smtp");
+        Properties props=new Properties();
+        try {
+            ClassLoader loader = ZhihuUtil.class.getClassLoader();
+            InputStream in = loader.getResourceAsStream("mailConfig.properties");
+            props.load(in);
+            System.out.println(props);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         Session session = Session.getInstance(props);
         Transport ts = null;
         try {
             ts = session.getTransport();
-            ts.connect("smtp.163.com", "makpia@163.com", "password");
+            ts.connect(props.getProperty("mail.smtp.host"), props.getProperty("username"), props.getProperty("password"));
             MimeMessage message = new MimeMessage(session);
             //发件人
             message.setFrom(new InternetAddress("makpia@163.com"));
