@@ -50,11 +50,11 @@ public class ZhihuUtil {
     private int loginBySavedCookiesTimes=0;
 
     public boolean getXsrf() {
-        con = Jsoup.connect("http://www.zhihu.com");
+        con = Jsoup.connect("http://www.zhihu.com").timeout(30000);
         con.header("User-Agent", userAgent);
         try {
-            rs = con.execute();
             getXsrfTimes++;
+            rs = con.execute();
         } catch (Exception e) {
             log.info("获得Xsrf失败");
             if(getXsrfTimes<10)
@@ -71,7 +71,9 @@ public class ZhihuUtil {
 
     public void getCaptchaCookies() {
         captchaCookies.clear();
-        con = Jsoup.connect("https://www.zhihu.com/captcha.gif?r=" + System.currentTimeMillis()).ignoreContentType(true);//获取连接
+        con = Jsoup.connect("https://www.zhihu.com/captcha.gif?r=" + System.currentTimeMillis())
+                .ignoreContentType(true)
+                .timeout(30000);//获取连接
         con.header("User-Agent", userAgent);
         try {
             rs = con.execute();
@@ -100,7 +102,7 @@ public class ZhihuUtil {
         String passWord=sc.nextLine();
         log.info("请打开工程路径查看验证码并输入");
         String captcha=sc.nextLine();
-        con = Jsoup.connect("https://www.zhihu.com/login/email");
+        con = Jsoup.connect("https://www.zhihu.com/login/email").timeout(30000);
         con.header("User-Agent", userAgent);
         try {
             rs = con.ignoreContentType(true).method(Connection.Method.POST)
@@ -159,16 +161,13 @@ public class ZhihuUtil {
         if(!getXsrf)
             getXsrf();
         readCookies("zhihu_cookies.txt");
-        con = Jsoup.connect("https://www.zhihu.com");//获取连接
+        con = Jsoup.connect("https://www.zhihu.com").timeout(30000);//获取连接
         con.header("User-Agent", userAgent);//配置模拟浏览器
         con.cookies(loginCookies);
         try {
             rs = con.execute();
-            loginBySavedCookiesTimes++;
         } catch (Exception e) {
             log.info("读取cookie登录失败");
-            if(loginBySavedCookiesTimes<5)
-                return loginBySavedCookies();
             return false;
         }
         return checkLogin(Jsoup.parse(rs.body()));
@@ -195,7 +194,7 @@ public class ZhihuUtil {
     }
 
     public boolean login(){
-        log.info(isLogin);
+        log.info("登录状态:"+isLogin);
         if(isLogin){
             return true;
         }
@@ -213,9 +212,9 @@ public class ZhihuUtil {
             isLogin = true;
             return true;
         }
-        log.info("no again");
+        log.info("check over,no login");
         isLogin = false;
-        return login();
+        return false;
     }
 
     public void watchNews(String url) {
@@ -327,6 +326,7 @@ public class ZhihuUtil {
             }
         }
     }
+
     public void startTraverse(String url){
         while(true){
             traverseNews(url);
@@ -379,5 +379,12 @@ public class ZhihuUtil {
                 e.printStackTrace();
             }
         }
+    }
+
+    public void peopleAnswer2Epub(boolean orderyByVoteNum,String url){
+
+    }
+    public void topicAnswer2Epub(String url){
+
     }
 }

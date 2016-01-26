@@ -2,3 +2,4 @@
 *.log
 src/Captcha.java
 src/DownloadPic.java
+src/mailConfig.properties
