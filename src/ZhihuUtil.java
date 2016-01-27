@@ -1,4 +1,8 @@
 import net.sf.json.JSONObject;
+import nl.siegmann.epublib.domain.Author;
+import nl.siegmann.epublib.domain.Book;
+import nl.siegmann.epublib.domain.Resource;
+import nl.siegmann.epublib.epub.EpubWriter;
 import org.apache.commons.io.FileUtils;
 import org.apache.log4j.Logger;
 import org.jsoup.Connection;
@@ -6,7 +10,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-
 import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.Session;
@@ -40,6 +43,9 @@ public class ZhihuUtil {
     private Map<Integer,String> downloadHtmlFailedMap =new HashMap<>();
     private List<String> downloadImgList=new ArrayList<>();
     private List<String> downloadImgFailedList=new ArrayList<>();
+    private List<String> downloadImgSucceedList=new ArrayList<>();
+    private List<String> downloadHtmlSucceedList=new ArrayList<>();
+    private String peopleName=" ";
 
     private boolean recentNewsTimeInit=false;
     private boolean isLogin = false;
@@ -415,9 +421,15 @@ public class ZhihuUtil {
         }
         doc=Jsoup.parse(rs.body());
         doc.setBaseUri("https://www.zhihu.com");
+        peopleName=doc.select(".title-section .name").text();
         Elements items=doc.select(".zm-item");
         for(int i=0;i<items.size();i++){
             threadHtmlPool.execute(new ThreadDownloadHtml(i, items.get(i).select(".question_link").attr("abs:href")));
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
     public void topicAnswer2Epub(String url){
@@ -440,26 +452,28 @@ public class ZhihuUtil {
             threadImgPool.execute(new ThreadDownloadImg(url));
         }
     }
-
-    public static void main(String[] args) {
-        System.out.println(String.format("%03d",1));
-        System.out.println("https://pic1.zhimg.com/4f37d15af1aa9ffcc126a5127bfa840_b.jpg"
-                .replaceFirst("https://(.*)/", "cabeza/"));
-        System.out.println("019为什么MIUI7稳定版都发布了，Google才刚刚发布6.0?".replaceAll("，","").replaceAll("\\?",""));
-        ZhihuUtil zu=new ZhihuUtil();
-        zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/intopass/answers");
-        System.out.println("111111111111");
-        zu.shutdownThreadHtmlPool();
+    public void waitThreadPoolEnd(ThreadPoolExecutor pool){
+        boolean loop = true;
         try {
-            boolean loop = true;
             do {
-                loop = !zu.getThreadHtmlPool().awaitTermination(2, TimeUnit.SECONDS);  //阻塞，直到线程池里所有任务结束
+                loop = !pool.awaitTermination(2, TimeUnit.SECONDS);  //阻塞，直到线程池里所有任务结束
             } while(loop);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    public static void main(String[] args) {
+        ZhihuUtil zu=new ZhihuUtil();
+        zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/gong-min-98/answers");
+        System.out.println("111111111111");
+        zu.shutdownThreadHtmlPool();
+        zu.waitThreadPoolEnd(zu.getThreadHtmlPool());
         zu.downloadImg();
         zu.shutdownThreadImgPool();
+        zu.waitThreadPoolEnd(zu.getThreadImgPool());
+        zu.pack2Epub();
+        System.out.println("over!!!!!");
     }
 
     class  ThreadDownloadHtml implements  Runnable{
@@ -510,6 +524,7 @@ public class ZhihuUtil {
             try {
                  out= new FileOutputStream(file);
                 out.write(rs.bodyAsBytes());
+                downloadImgSucceedList.add(url);
             } catch (IOException e) {
                 e.printStackTrace();
             }finally {
@@ -526,23 +541,53 @@ public class ZhihuUtil {
         String fileName=String.format("%03d",number)+doc.select(".zm-item-title.zm-editable-content").text()+".html";
         fileName=fileName.replaceAll("，",",").replaceAll("\\?","").trim();
         Element htmlContent=doc.select(".zm-editable-content.clearfix").first();
+        if(htmlContent==null)
+            return;
         htmlContent.select("noscript").remove();
         Elements imgs=htmlContent.select("img");
         for(Element img:imgs){
             img.attr("src",img.attr("data-actualsrc").replaceFirst("https://(.*)/", "img/"));
             img.append("<br>");
-         //   threadImgPool.execute(new ThreadDownloadImg(img.attr("data-actualsrc")));
-         //   System.out.println(img);
             downloadImgList.add(img.attr("data-actualsrc"));
         }
         try {
             FileUtils.writeStringToFile(new File(HTML_DIR_ROOT+fileName)
                     , "<html>\n<head>\n<meta charset=\"utf-8\">\n</head>\n<body>\n"
+                    +"<h5>"+doc.select(".zm-item-title.zm-editable-content").text()+"</h5>"
                     +htmlContent.toString()
                     +"\n</body>\n</html>"
                     ,"UTF-8");
+            downloadHtmlSucceedList.add(fileName);
             log.info("下载编号"+number+"网页成功");
         } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    public void pack2Epub(){
+        try {
+            Book book = new Book();
+            book.getMetadata().addTitle(peopleName+"的知乎回答");
+            book.getMetadata().addAuthor(new Author("", peopleName));
+            for(String url:downloadImgSucceedList){
+                String imgName=url.replaceFirst("https://(.*)/", "");
+                book.getResources().add(new Resource(new FileInputStream(new File(IMG_DIR_ROOT + imgName)), "img/"+imgName));
+            }
+            downloadHtmlSucceedList.sort(new Comparator<String>() {
+                @Override
+                public int compare(String o1, String o2) {
+                    if(o1.compareTo(o2)<0)
+                        return -1;
+                    return 1;
+                }
+            });
+            for(int i=0;i<downloadHtmlSucceedList.size();i++){
+                String url=downloadHtmlSucceedList.get(i);
+                book.addSection(url.substring(0,url.length()-4), new Resource(new FileInputStream(
+                        new File(HTML_DIR_ROOT + url)), i+".html"));
+            }
+            EpubWriter epubWriter = new EpubWriter();
+            epubWriter.write(book, new FileOutputStream(HTML_DIR_ROOT +peopleName+"的知乎回答.epub"));
+        }catch (Exception e){
             e.printStackTrace();
         }
     }
