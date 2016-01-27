@@ -1,4 +1,5 @@
 import net.sf.json.JSONObject;
+import org.apache.commons.io.FileUtils;
 import org.apache.log4j.Logger;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
@@ -15,6 +16,9 @@ import javax.mail.internet.MimeMessage;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by Cabeza on 2016/1/13.
@@ -25,12 +29,17 @@ import java.util.*;
  */
 public class ZhihuUtil {
     public static final String userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0";
-    private static Logger log=Logger.getLogger(Captcha.class);
+    private static Logger log=Logger.getLogger(ZhihuUtil.class);
     private Date date = new Date();
+    public static final String HTML_DIR_ROOT = "C:/book1/";
+    public static final String IMG_DIR_ROOT="c:/book1/img/";
 
     private Map<String,String> captchaCookies =new HashMap<>();
     private Map<String,String> loginCookies =new HashMap<>();
     private Map<String,String> updateNews=new HashMap<>();
+    private Map<Integer,String> downloadHtmlFailedMap =new HashMap<>();
+    private List<String> downloadImgList=new ArrayList<>();
+    private List<String> downloadImgFailedList=new ArrayList<>();
 
     private boolean recentNewsTimeInit=false;
     private boolean isLogin = false;
@@ -48,6 +57,11 @@ public class ZhihuUtil {
     private String traverseStartSign = "";
     private int getXsrfTimes=0;
     private int loginBySavedCookiesTimes=0;
+    ThreadPoolExecutor threadHtmlPool = new ThreadPoolExecutor(20, 40, 3, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<Runnable>(40), new ThreadPoolExecutor.DiscardOldestPolicy());
+    ThreadPoolExecutor threadImgPool = new ThreadPoolExecutor(5, 10, 3, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<Runnable>(10), new ThreadPoolExecutor.DiscardOldestPolicy());
+
 
     public boolean getXsrf() {
         con = Jsoup.connect("http://www.zhihu.com").timeout(30000);
@@ -382,9 +396,154 @@ public class ZhihuUtil {
     }
 
     public void peopleAnswer2Epub(boolean orderyByVoteNum,String url){
-
+        String answerUrl="";
+        if(orderyByVoteNum){
+            answerUrl = url+"?order_by=vote_num&page="+1;
+        } else{
+            answerUrl = url+"?page="+1;
+        }
+        login();
+        con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
+        con.header("User-Agent", userAgent);//配置模拟浏览器
+        con.cookies(loginCookies);
+        try {
+            rs = con.execute();
+        } catch (Exception e) {
+            log.info("----failed");
+            e.printStackTrace();
+            return;
+        }
+        doc=Jsoup.parse(rs.body());
+        doc.setBaseUri("https://www.zhihu.com");
+        Elements items=doc.select(".zm-item");
+        for(int i=0;i<items.size();i++){
+            threadHtmlPool.execute(new ThreadDownloadHtml(i, items.get(i).select(".question_link").attr("abs:href")));
+        }
     }
     public void topicAnswer2Epub(String url){
+    }
+    public ThreadPoolExecutor getThreadHtmlPool(){
+        return threadHtmlPool;
+    }
+    public ThreadPoolExecutor getThreadImgPool(){
+        return threadImgPool;
+    }
+    public void shutdownThreadHtmlPool(){
+        threadHtmlPool.shutdown();
+    }
+    public void shutdownThreadImgPool(){
+        threadImgPool.shutdown();
+    }
+    public void downloadImg(){
+        for(String url:downloadImgList){
+            System.out.println(url);
+            threadImgPool.execute(new ThreadDownloadImg(url));
+        }
+    }
 
+    public static void main(String[] args) {
+        System.out.println(String.format("%03d",1));
+        System.out.println("https://pic1.zhimg.com/4f37d15af1aa9ffcc126a5127bfa840_b.jpg"
+                .replaceFirst("https://(.*)/", "cabeza/"));
+        System.out.println("019为什么MIUI7稳定版都发布了，Google才刚刚发布6.0?".replaceAll("，","").replaceAll("\\?",""));
+        ZhihuUtil zu=new ZhihuUtil();
+        zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/intopass/answers");
+        System.out.println("111111111111");
+        zu.shutdownThreadHtmlPool();
+        try {
+            boolean loop = true;
+            do {
+                loop = !zu.getThreadHtmlPool().awaitTermination(2, TimeUnit.SECONDS);  //阻塞，直到线程池里所有任务结束
+            } while(loop);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        zu.downloadImg();
+        zu.shutdownThreadImgPool();
+    }
+
+    class  ThreadDownloadHtml implements  Runnable{
+        private int number;
+        private String answerUrl;
+        public ThreadDownloadHtml(int number,String answerUrl){
+            this.number=number;
+            this.answerUrl=answerUrl;
+        }
+        @Override
+        public void run(){
+            con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
+            con.header("User-Agent", userAgent);//配置模拟浏览器
+            con.cookies(loginCookies);
+            try {
+                log.info("编号"+number+",链接"+answerUrl+"...");
+                rs = con.execute();
+            } catch (Exception e) {
+                downloadHtmlFailedMap.put(number, answerUrl);
+                e.printStackTrace();
+                return;
+            }
+            log.info("准备解析下载编号"+number+"...");
+            doc=Jsoup.parse(rs.body());
+            parseAnswer(number,doc);
+        }
+    }
+    class ThreadDownloadImg implements Runnable{
+        private String url;
+        private FileOutputStream out=null;
+        public ThreadDownloadImg(String url){
+            this.url=url;
+        }
+        @Override
+        public void run(){
+            con = Jsoup.connect(url)
+                    .ignoreContentType(true)
+                    .timeout(30000);//获取连接
+            con.header("User-Agent", userAgent);
+            try {
+                rs = con.execute();
+            } catch (Exception e) {
+                log.info("下载图片失败");
+                downloadImgFailedList.add(url);
+                return;
+            }
+            File file = new File(IMG_DIR_ROOT+url.replaceFirst("https://(.*)/", ""));
+            try {
+                 out= new FileOutputStream(file);
+                out.write(rs.bodyAsBytes());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }finally {
+                try {
+                    log.info("下载图片成功");
+                    out.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    public void parseAnswer(int number,Document doc){
+        String fileName=String.format("%03d",number)+doc.select(".zm-item-title.zm-editable-content").text()+".html";
+        fileName=fileName.replaceAll("，",",").replaceAll("\\?","").trim();
+        Element htmlContent=doc.select(".zm-editable-content.clearfix").first();
+        htmlContent.select("noscript").remove();
+        Elements imgs=htmlContent.select("img");
+        for(Element img:imgs){
+            img.attr("src",img.attr("data-actualsrc").replaceFirst("https://(.*)/", "img/"));
+            img.append("<br>");
+         //   threadImgPool.execute(new ThreadDownloadImg(img.attr("data-actualsrc")));
+         //   System.out.println(img);
+            downloadImgList.add(img.attr("data-actualsrc"));
+        }
+        try {
+            FileUtils.writeStringToFile(new File(HTML_DIR_ROOT+fileName)
+                    , "<html>\n<head>\n<meta charset=\"utf-8\">\n</head>\n<body>\n"
+                    +htmlContent.toString()
+                    +"\n</body>\n</html>"
+                    ,"UTF-8");
+            log.info("下载编号"+number+"网页成功");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
