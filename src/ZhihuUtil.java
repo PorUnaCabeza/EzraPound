@@ -46,6 +46,7 @@ public class ZhihuUtil {
     private List<String> downloadImgSucceedList=new ArrayList<>();
     private List<String> downloadHtmlSucceedList=new ArrayList<>();
     private String peopleName=" ";
+    private int answerNum=0;
 
     private boolean recentNewsTimeInit=false;
     private boolean isLogin = false;
@@ -396,18 +397,20 @@ public class ZhihuUtil {
             }
         }
     }
+    public synchronized int addAnswerNum(){
+        return answerNum++;
+    }
 
-    public void peopleAnswer2Epub(boolean orderyByVoteNum,String url){
-        threadPool = new ThreadPoolExecutor(20, 40, 3, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(40), new ThreadPoolExecutor.DiscardOldestPolicy());
-        initDir();
+    public Document getAnswerPageDoc(boolean orderyByVoteNum,String url,int pageNum,int recursiveTimes){
+        if(recursiveTimes>5)
+            return null;
         String answerUrl="";
         if(orderyByVoteNum){
-            answerUrl = url+"?order_by=vote_num&page="+1;
+            answerUrl = url+"?order_by=vote_num&page="+pageNum;
         } else{
-            answerUrl = url+"?page="+1;
+            answerUrl = url+"?page="+pageNum;
         }
-        login();
+        // login();
         con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
         con.header("User-Agent", userAgent);//配置模拟浏览器
         con.cookies(loginCookies);
@@ -416,20 +419,37 @@ public class ZhihuUtil {
         } catch (Exception e) {
             log.info("----failed");
             e.printStackTrace();
-            return;
+            return getAnswerPageDoc(orderyByVoteNum,url,pageNum,recursiveTimes+1);
         }
         doc=Jsoup.parse(rs.body());
         doc.setBaseUri("https://www.zhihu.com");
+        return doc;
+    }
+
+    public void peopleAnswer2Epub(boolean orderyByVoteNum,String url,int limitCount){
+        int pageCount;
+        Document doc;
+        threadPool = new ThreadPoolExecutor(10, 20, 3, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(1000), new ThreadPoolExecutor.DiscardOldestPolicy());
+        initDir();
+        doc=getAnswerPageDoc(orderyByVoteNum,url,1,0);
+        if(doc==null)
+            return;
         peopleName=doc.select(".title-section .name").text();
-        Elements items=doc.select(".zm-item");
-        for(int i=0;i<items.size();i++){
-            threadPool.execute(new ThreadDownloadHtml(i, items.get(i).select(".question_link").attr("abs:href")));
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+        Elements items;
+        int maxPageNum=Integer.parseInt(doc.select(".zm-invite-pager span").last().previousElementSibling().text());
+        if(limitCount==0||limitCount>maxPageNum)
+            pageCount=maxPageNum;
+        else
+            pageCount=limitCount;
+        for(int i=0;i<pageCount;i++){
+            doc=getAnswerPageDoc(orderyByVoteNum,url,i+1,0);
+            items=doc.select(".zm-item");
+            for(int j=0;j<items.size();j++){
+                threadPool.execute(new ThreadDownloadHtml(addAnswerNum(), items.get(j).select(".question_link").attr("abs:href")));
             }
         }
+
         shutdownThreadPool();
         waitThreadPoolEnd(getThreadPool());
         threadPool = new ThreadPoolExecutor(20, 40, 3, TimeUnit.SECONDS,
@@ -438,6 +458,7 @@ public class ZhihuUtil {
         shutdownThreadPool();
         waitThreadPoolEnd(getThreadPool());
         pack2Epub();
+        downloadFailedItems();
         System.out.println("over!!!!!");
     }
     public void topicAnswer2Epub(String url){
@@ -472,7 +493,10 @@ public class ZhihuUtil {
         }
     }
     public void downloadFailedItems(){
-
+        log.info("读取下载失败列表...");
+        for (Map.Entry<Integer, String> entry : downloadHtmlFailedMap.entrySet()) {
+            log.info("编号"+entry.getKey()+"下载失败");
+        }
     }
     public void waitThreadPoolEnd(ThreadPoolExecutor pool){
         boolean loop = true;
@@ -487,26 +511,26 @@ public class ZhihuUtil {
 
     public static void main(String[] args) {
         ZhihuUtil zu=new ZhihuUtil();
-        zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/gong-min-98/answers");
+        zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/excited-vczh/answers",4);
     }
 
     class  ThreadDownloadHtml implements  Runnable{
         private int number;
         private String answerUrl;
-        private int downloadCount=0;
         public ThreadDownloadHtml(int number,String answerUrl){
             this.number=number;
             this.answerUrl=answerUrl;
         }
         @Override
         public void run(){
-            if(download())
+            if(download(0))
                 return;
-            while(!download()&&downloadCount<5){
-                downloadCount++;
-            }
+            downloadHtmlFailedMap.put(number, answerUrl);
         }
-        public boolean download(){
+        public boolean download(int recursiveTimes){
+            if(recursiveTimes>5){
+                return false;
+            }
             con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
             con.header("User-Agent", userAgent);//配置模拟浏览器
             con.cookies(loginCookies);
@@ -514,9 +538,8 @@ public class ZhihuUtil {
                 log.info("编号"+number+",链接"+answerUrl+"...");
                 rs = con.execute();
             } catch (Exception e) {
-                downloadHtmlFailedMap.put(number, answerUrl);
-                e.printStackTrace();
-                return false;
+                log.info("编号"+number+"第"+recursiveTimes+"次下载失败");
+                return download(recursiveTimes+1);
             }
             log.info("准备解析下载编号"+number+"...");
             doc=Jsoup.parse(rs.body());
@@ -534,14 +557,11 @@ public class ZhihuUtil {
         }
         @Override
         public void run(){
-            if(download())
-                return;
-            while(!download()&&downloadCount<5){
-                downloadCount++;
-                log.info("*******************************++");
-            }
+           download(0);
         }
-        public boolean download(){
+        public boolean download(int recursiveTimes){
+            if(recursiveTimes>5)
+                return false;
             con = Jsoup.connect(url)
                     .ignoreContentType(true)
                     .timeout(30000);//获取连接
@@ -549,19 +569,18 @@ public class ZhihuUtil {
             try {
                 rs = con.execute();
             } catch (Exception e) {
-                log.info("获取图片失败,执行"+downloadCount+"次"+picName);
-                downloadImgFailedSet.add(url);
-                return false;
+                log.info("图片"+picName+"第"+recursiveTimes+"次获取失败");
+                return download(recursiveTimes+1);
             }
             File file = new File(IMG_DIR_ROOT+picName);
             try {
                 out= new FileOutputStream(file);
                 out.write(rs.bodyAsBytes());
                 downloadImgSucceedList.add(picName);
-                log.info("下载图片成功"+picName+"执行"+downloadCount+"次");
+                log.info("下载图片成功"+picName+"执行"+recursiveTimes+"次");
                 return true;
             } catch (IOException e) {
-                log.info("---------保存图片失败-----------");
+                log.info("保存图片失败---"+picName);
                 e.printStackTrace();
                 return false;
             }finally {
@@ -574,8 +593,14 @@ public class ZhihuUtil {
         }
     }
     public boolean parseAnswer(int number,Document doc){
-        String fileName=String.format("%03d",number)+doc.select(".zm-item-title.zm-editable-content").text()+".html";
-        fileName=fileName.replaceAll("，",",").replaceAll("\\?","").trim();
+        String fileName=String.format("%04d",number)+"."+doc.select(".zm-item-title.zm-editable-content").text()+".html";
+        fileName=fileName
+                .replaceAll("，",",")
+                .replaceAll("\\?","")
+                .replaceAll("\"","")
+                .replaceAll("/","")
+                .replaceAll("\\\\","")
+                .trim();
         Element htmlContent=doc.select(".zm-editable-content.clearfix").first();
         if(htmlContent==null)
             return false;
@@ -589,7 +614,7 @@ public class ZhihuUtil {
         try {
             FileUtils.writeStringToFile(new File(HTML_DIR_ROOT+fileName)
                     , "<html>\n<head>\n<meta charset=\"utf-8\">\n</head>\n<body>\n"
-                    +"<h5>"+doc.select(".zm-item-title.zm-editable-content").text()+"</h5>"
+                    +"<h5>"+doc.select(".zm-item-title.zm-editable-content").text()+"</h5>\n"
                     +htmlContent.toString()
                     +"\n</body>\n</html>"
                     ,"UTF-8");
@@ -597,7 +622,6 @@ public class ZhihuUtil {
             log.info("下载编号"+number+"网页成功");
             return  true;
         } catch (IOException e) {
-            e.printStackTrace();
             log.info("------------下载编号"+number+"网页失败--------------");
             return  false;
         }
