@@ -42,7 +42,7 @@ public class ZhihuUtil {
     private Map<String,String> updateNews=new HashMap<>();
     private Map<Integer,String> downloadHtmlFailedMap =new HashMap<>();
     private List<String> downloadImgList=new ArrayList<>();
-    private List<String> downloadImgFailedList=new ArrayList<>();
+    private Set<String> downloadImgFailedSet=new HashSet<>();
     private List<String> downloadImgSucceedList=new ArrayList<>();
     private List<String> downloadHtmlSucceedList=new ArrayList<>();
     private String peopleName=" ";
@@ -63,11 +63,7 @@ public class ZhihuUtil {
     private String traverseStartSign = "";
     private int getXsrfTimes=0;
     private int loginBySavedCookiesTimes=0;
-    ThreadPoolExecutor threadHtmlPool = new ThreadPoolExecutor(20, 40, 3, TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(40), new ThreadPoolExecutor.DiscardOldestPolicy());
-    ThreadPoolExecutor threadImgPool = new ThreadPoolExecutor(5, 10, 3, TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(10), new ThreadPoolExecutor.DiscardOldestPolicy());
-
+    ThreadPoolExecutor threadPool;
 
     public boolean getXsrf() {
         con = Jsoup.connect("http://www.zhihu.com").timeout(30000);
@@ -402,6 +398,9 @@ public class ZhihuUtil {
     }
 
     public void peopleAnswer2Epub(boolean orderyByVoteNum,String url){
+        threadPool = new ThreadPoolExecutor(20, 40, 3, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(40), new ThreadPoolExecutor.DiscardOldestPolicy());
+        initDir();
         String answerUrl="";
         if(orderyByVoteNum){
             answerUrl = url+"?order_by=vote_num&page="+1;
@@ -424,7 +423,47 @@ public class ZhihuUtil {
         peopleName=doc.select(".title-section .name").text();
         Elements items=doc.select(".zm-item");
         for(int i=0;i<items.size();i++){
-            threadHtmlPool.execute(new ThreadDownloadHtml(i, items.get(i).select(".question_link").attr("abs:href")));
+            threadPool.execute(new ThreadDownloadHtml(i, items.get(i).select(".question_link").attr("abs:href")));
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        shutdownThreadPool();
+        waitThreadPoolEnd(getThreadPool());
+        threadPool = new ThreadPoolExecutor(20, 40, 3, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(40), new ThreadPoolExecutor.DiscardOldestPolicy());
+        downloadImg();
+        shutdownThreadPool();
+        waitThreadPoolEnd(getThreadPool());
+        pack2Epub();
+        System.out.println("over!!!!!");
+    }
+    public void topicAnswer2Epub(String url){
+    }
+    public void initDir(){
+        File htmlDir=new File(HTML_DIR_ROOT);
+        File imgDir=new File(IMG_DIR_ROOT);
+        if(!htmlDir.exists()&&!htmlDir.isDirectory()){
+            htmlDir.mkdir();
+            log.info(HTML_DIR_ROOT+"不存在,现创建..");
+        }
+        if(!imgDir.exists()&&!imgDir.isDirectory()){
+            imgDir.mkdir();
+            log.info(IMG_DIR_ROOT+"不存在,现创建..");
+        }
+    }
+    public ThreadPoolExecutor getThreadPool(){
+        return threadPool;
+    }
+    public void shutdownThreadPool(){
+        threadPool.shutdown();
+    }
+    public void downloadImg(){
+        for(String url:downloadImgList){
+            log.info(url);
+            threadPool.execute(new ThreadDownloadImg(url));
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
@@ -432,25 +471,8 @@ public class ZhihuUtil {
             }
         }
     }
-    public void topicAnswer2Epub(String url){
-    }
-    public ThreadPoolExecutor getThreadHtmlPool(){
-        return threadHtmlPool;
-    }
-    public ThreadPoolExecutor getThreadImgPool(){
-        return threadImgPool;
-    }
-    public void shutdownThreadHtmlPool(){
-        threadHtmlPool.shutdown();
-    }
-    public void shutdownThreadImgPool(){
-        threadImgPool.shutdown();
-    }
-    public void downloadImg(){
-        for(String url:downloadImgList){
-            System.out.println(url);
-            threadImgPool.execute(new ThreadDownloadImg(url));
-        }
+    public void downloadFailedItems(){
+
     }
     public void waitThreadPoolEnd(ThreadPoolExecutor pool){
         boolean loop = true;
@@ -466,25 +488,25 @@ public class ZhihuUtil {
     public static void main(String[] args) {
         ZhihuUtil zu=new ZhihuUtil();
         zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/gong-min-98/answers");
-        System.out.println("111111111111");
-        zu.shutdownThreadHtmlPool();
-        zu.waitThreadPoolEnd(zu.getThreadHtmlPool());
-        zu.downloadImg();
-        zu.shutdownThreadImgPool();
-        zu.waitThreadPoolEnd(zu.getThreadImgPool());
-        zu.pack2Epub();
-        System.out.println("over!!!!!");
     }
 
     class  ThreadDownloadHtml implements  Runnable{
         private int number;
         private String answerUrl;
+        private int downloadCount=0;
         public ThreadDownloadHtml(int number,String answerUrl){
             this.number=number;
             this.answerUrl=answerUrl;
         }
         @Override
         public void run(){
+            if(download())
+                return;
+            while(!download()&&downloadCount<5){
+                downloadCount++;
+            }
+        }
+        public boolean download(){
             con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
             con.header("User-Agent", userAgent);//配置模拟浏览器
             con.cookies(loginCookies);
@@ -494,21 +516,32 @@ public class ZhihuUtil {
             } catch (Exception e) {
                 downloadHtmlFailedMap.put(number, answerUrl);
                 e.printStackTrace();
-                return;
+                return false;
             }
             log.info("准备解析下载编号"+number+"...");
             doc=Jsoup.parse(rs.body());
-            parseAnswer(number,doc);
+            return parseAnswer(number,doc);
         }
     }
     class ThreadDownloadImg implements Runnable{
         private String url;
+        private String picName;
+        private int downloadCount=0;
         private FileOutputStream out=null;
         public ThreadDownloadImg(String url){
             this.url=url;
+            this.picName=url.replaceFirst("https://(.*)/", "");
         }
         @Override
         public void run(){
+            if(download())
+                return;
+            while(!download()&&downloadCount<5){
+                downloadCount++;
+                log.info("*******************************++");
+            }
+        }
+        public boolean download(){
             con = Jsoup.connect(url)
                     .ignoreContentType(true)
                     .timeout(30000);//获取连接
@@ -516,20 +549,23 @@ public class ZhihuUtil {
             try {
                 rs = con.execute();
             } catch (Exception e) {
-                log.info("下载图片失败");
-                downloadImgFailedList.add(url);
-                return;
+                log.info("获取图片失败,执行"+downloadCount+"次"+picName);
+                downloadImgFailedSet.add(url);
+                return false;
             }
-            File file = new File(IMG_DIR_ROOT+url.replaceFirst("https://(.*)/", ""));
+            File file = new File(IMG_DIR_ROOT+picName);
             try {
-                 out= new FileOutputStream(file);
+                out= new FileOutputStream(file);
                 out.write(rs.bodyAsBytes());
-                downloadImgSucceedList.add(url);
+                downloadImgSucceedList.add(picName);
+                log.info("下载图片成功"+picName+"执行"+downloadCount+"次");
+                return true;
             } catch (IOException e) {
+                log.info("---------保存图片失败-----------");
                 e.printStackTrace();
+                return false;
             }finally {
                 try {
-                    log.info("下载图片成功");
                     out.close();
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -537,12 +573,12 @@ public class ZhihuUtil {
             }
         }
     }
-    public void parseAnswer(int number,Document doc){
+    public boolean parseAnswer(int number,Document doc){
         String fileName=String.format("%03d",number)+doc.select(".zm-item-title.zm-editable-content").text()+".html";
         fileName=fileName.replaceAll("，",",").replaceAll("\\?","").trim();
         Element htmlContent=doc.select(".zm-editable-content.clearfix").first();
         if(htmlContent==null)
-            return;
+            return false;
         htmlContent.select("noscript").remove();
         Elements imgs=htmlContent.select("img");
         for(Element img:imgs){
@@ -559,8 +595,11 @@ public class ZhihuUtil {
                     ,"UTF-8");
             downloadHtmlSucceedList.add(fileName);
             log.info("下载编号"+number+"网页成功");
+            return  true;
         } catch (IOException e) {
             e.printStackTrace();
+            log.info("------------下载编号"+number+"网页失败--------------");
+            return  false;
         }
     }
     public void pack2Epub(){
