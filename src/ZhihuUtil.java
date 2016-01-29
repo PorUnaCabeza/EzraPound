@@ -37,47 +37,60 @@ public class ZhihuUtil {
     public static final String HTML_DIR_ROOT = "C:/book1/";
     public static final String IMG_DIR_ROOT="c:/book1/img/";
 
+    //存储获得的cookie
     private Map<String,String> captchaCookies =new HashMap<>();
     private Map<String,String> loginCookies =new HashMap<>();
+    //存储用户产生的新动态
     private Map<String,String> updateNews=new HashMap<>();
-    private Map<Integer,String> downloadHtmlFailedMap =new HashMap<>();
-    private List<String> downloadImgList=new ArrayList<>();
-    private Set<String> downloadImgFailedSet=new HashSet<>();
-    private List<String> downloadImgSucceedList=new ArrayList<>();
-    private List<String> downloadHtmlSucceedList=new ArrayList<>();
-    private String peopleName=" ";
-    private int answerNum=0;
 
+    //下载html文件成功与失败列表
+    private Map<Integer,String> downloadHtmlFailedMap =new HashMap<>();
+    private List<String> downloadHtmlSucceedList=new ArrayList<>();
+    //图片 预下载、下载成功、下载失败
+    private List<String> downloadImgList=new ArrayList<>();
+    private List<String> downloadImgSucceedList=new ArrayList<>();
+    private Set<String> downloadImgFailedSet=new HashSet<>();
+    //用户名
+    private String peopleName=" ";
+    //准备下载的回答的编号,自增
+    private int downloadAnswerNum =0;
+
+    //是否获得当前最新动态的时间
     private boolean recentNewsTimeInit=false;
+    //当前最新动态的unix时间戳
+    private String recentNewsTime="0";
+
+    //是否为登录状态
     private boolean isLogin = false;
+    //_xsrf的值
+    private String _xsrf;
+    //是否获得_xsrf值
     private boolean getXsrf=false;
 
     private Scanner sc=new Scanner(System.in);
-
-    private String _xsrf;
-    private String recentNewsTime="0";
+    //邮件内容
     private StringBuffer emailContent=new StringBuffer();
     private Connection con;
     private Connection.Response rs;
     private Document doc;
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+    //爬取动态时，为防止网络中断，记录当前爬取到的动态标记
     private String traverseStartSign = "";
-    private int getXsrfTimes=0;
-    private int loginBySavedCookiesTimes=0;
+
+    //线程池
     ThreadPoolExecutor threadPool;
 
-    public boolean getXsrf() {
+    public boolean getXsrf(int recursiveTimes) {
+        if(recursiveTimes>5){
+            return false;
+        }
         con = Jsoup.connect("http://www.zhihu.com").timeout(30000);
         con.header("User-Agent", userAgent);
         try {
-            getXsrfTimes++;
             rs = con.execute();
         } catch (Exception e) {
-            log.info("获得Xsrf失败");
-            if(getXsrfTimes<10)
-                return getXsrf();
-            getXsrf=false;
-            return false;
+            log.info("获得Xsrf第"+recursiveTimes+"次失败");
+            return getXsrf(recursiveTimes+1);
         }
         Document doc=Jsoup.parse(rs.body());
         _xsrf=doc.select(".view.view-signin [name=\"_xsrf\"]").attr("value");
@@ -111,7 +124,6 @@ public class ZhihuUtil {
 
     public boolean getLoginCookies() {
         loginCookies.clear();
-        getXsrf();
         getCaptchaCookies();
         log.info("请输入帐号");
         String userName=sc.nextLine();
@@ -135,6 +147,11 @@ public class ZhihuUtil {
         return true;
     }
 
+    /**
+     * 登陆成功后将当前cookie保存到文件，以便下次免登录
+     * @param fileName 文件名
+     * @param cookies cookies
+     */
     public void saveCookies(String fileName, Map<String, String> cookies) {
         FileOutputStream fos = null;
         try {
@@ -152,6 +169,10 @@ public class ZhihuUtil {
         log.info("cookies已保存");
     }
 
+    /**
+     * 从文件读取cookie
+     * @param filename 文件名
+     */
     public void readCookies(String filename) {
         loginCookies.clear();
         try {
@@ -174,9 +195,10 @@ public class ZhihuUtil {
         }
     }
 
+    //见方法名
     public boolean loginBySavedCookies() {
         if(!getXsrf)
-            getXsrf();
+            getXsrf(0);
         readCookies("zhihu_cookies.txt");
         con = Jsoup.connect("https://www.zhihu.com").timeout(30000);//获取连接
         con.header("User-Agent", userAgent);//配置模拟浏览器
@@ -190,6 +212,10 @@ public class ZhihuUtil {
         return checkLogin(Jsoup.parse(rs.body()));
     }
 
+    /**
+     * 从文件读取cookie登录失败时，通过帐号密码登录喽
+     * @return
+     */
     public boolean loginByEmailAndPwd() {
         getLoginCookies();
         con = Jsoup.connect("https://www.zhihu.com");//获取连接
@@ -210,6 +236,7 @@ public class ZhihuUtil {
         return false;
     }
 
+    //登录逻辑
     public boolean login(){
         log.info("登录状态:"+isLogin);
         if(isLogin){
@@ -222,6 +249,7 @@ public class ZhihuUtil {
         return true;
     }
 
+    //检查登录状态
     public boolean checkLogin(Document doc) {
         Elements elmts=doc.select(".zu-top-nav-userinfo");
         if(!elmts.isEmpty()){
@@ -234,6 +262,10 @@ public class ZhihuUtil {
         return false;
     }
 
+    /**
+     * 监控某用户知乎动态，若出现新的动态，将会向指定邮箱发送邮件
+     * @param url 用户知乎首页地址
+     */
     public void watchNews(String url) {
         login();
         con = Jsoup.connect(url).timeout(30000);//获取连接
@@ -268,6 +300,10 @@ public class ZhihuUtil {
         log.info("*************" + sdf.format(System.currentTimeMillis()) + "*************");
     }
 
+    /**
+     * 按时间爬取用户所有知乎动态
+     * @param url 用户知乎首页地址
+     */
     public void traverseNews(String url){
         Elements elmts;
         login();
@@ -306,6 +342,7 @@ public class ZhihuUtil {
         elmts = doc.select(".zm-profile-section-item.zm-item.clearfix");
         while(!elmts.isEmpty()){
             for (Element elmt : elmts) {
+                //此处通过正则表达式配置关键词过滤
                 if (elmt.select(".zm-profile-activity-page-item-main").text().matches(".*(keyword1|.*).*")) {
                     date.setTime(Long.parseLong(elmt.attr("data-time")) * 1000);
                     log.info(sdf.format(date));
@@ -333,6 +370,7 @@ public class ZhihuUtil {
         System.exit(0);
     }
 
+    //监控动态入口
     public void startWatch(String url,long millis){
         while(true){
             watchNews(url);
@@ -343,7 +381,7 @@ public class ZhihuUtil {
             }
         }
     }
-
+    //爬取动态入口
     public void startTraverse(String url){
         while(true){
             traverseNews(url);
@@ -354,7 +392,7 @@ public class ZhihuUtil {
             }
         }
     }
-
+    //发送邮件
     public void sendMail(Map<String,String> news) {
         Properties props=new Properties();
         try {
@@ -397,10 +435,19 @@ public class ZhihuUtil {
             }
         }
     }
-    public synchronized int addAnswerNum(){
-        return answerNum++;
+    public synchronized int addDownloadAnswerNum(){
+        return downloadAnswerNum++;
     }
 
+    /**
+     * 获取用户回答页的document
+     *
+     * @param orderyByVoteNum 按赞同数排序or时间排序
+     * @param url 用户回答页url，如 https://www.zhihu.com/people/excited-vczh/answers
+     * @param pageNum 页数
+     * @param recursiveTimes 递归次数
+     * @return
+     */
     public Document getAnswerPageDoc(boolean orderyByVoteNum,String url,int pageNum,int recursiveTimes){
         if(recursiveTimes>5)
             return null;
@@ -410,7 +457,6 @@ public class ZhihuUtil {
         } else{
             answerUrl = url+"?page="+pageNum;
         }
-        // login();
         con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
         con.header("User-Agent", userAgent);//配置模拟浏览器
         con.cookies(loginCookies);
@@ -426,7 +472,14 @@ public class ZhihuUtil {
         return doc;
     }
 
+    /**
+     * 将用户回答下载打包为epub格式电子书,入口
+     * @param orderyByVoteNum
+     * @param url
+     * @param limitCount
+     */
     public void peopleAnswer2Epub(boolean orderyByVoteNum,String url,int limitCount){
+        login();
         int pageCount;
         Document doc;
         threadPool = new ThreadPoolExecutor(10, 20, 3, TimeUnit.SECONDS,
@@ -446,10 +499,9 @@ public class ZhihuUtil {
             doc=getAnswerPageDoc(orderyByVoteNum,url,i+1,0);
             items=doc.select(".zm-item");
             for(int j=0;j<items.size();j++){
-                threadPool.execute(new ThreadDownloadHtml(addAnswerNum(), items.get(j).select(".question_link").attr("abs:href")));
+                threadPool.execute(new ThreadDownloadHtml(addDownloadAnswerNum(), items.get(j).select(".question_link").attr("abs:href")));
             }
         }
-
         shutdownThreadPool();
         waitThreadPoolEnd(getThreadPool());
         threadPool = new ThreadPoolExecutor(20, 40, 3, TimeUnit.SECONDS,
@@ -457,12 +509,15 @@ public class ZhihuUtil {
         downloadImg();
         shutdownThreadPool();
         waitThreadPoolEnd(getThreadPool());
-        pack2Epub();
         downloadFailedItems();
+        pack2Epub();
         System.out.println("over!!!!!");
     }
     public void topicAnswer2Epub(String url){
+
     }
+
+    //初始化路径
     public void initDir(){
         File htmlDir=new File(HTML_DIR_ROOT);
         File imgDir=new File(IMG_DIR_ROOT);
@@ -481,6 +536,8 @@ public class ZhihuUtil {
     public void shutdownThreadPool(){
         threadPool.shutdown();
     }
+
+
     public void downloadImg(){
         for(String url:downloadImgList){
             log.info(url);
@@ -492,6 +549,10 @@ public class ZhihuUtil {
             }
         }
     }
+
+    /**
+     * 读取下载失败列表，并重试下载
+     */
     public void downloadFailedItems(){
         log.info("读取下载失败列表...");
         if(downloadHtmlFailedMap.size()>0){
@@ -520,11 +581,16 @@ public class ZhihuUtil {
         }
 
     }
+
+    /**
+     * 阻塞，直到线程池里所有任务结束
+     * @param pool
+     */
     public void waitThreadPoolEnd(ThreadPoolExecutor pool){
         boolean loop = true;
         try {
             do {
-                loop = !pool.awaitTermination(2, TimeUnit.SECONDS);  //阻塞，直到线程池里所有任务结束
+                loop = !pool.awaitTermination(2, TimeUnit.SECONDS);
             } while(loop);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -535,7 +601,7 @@ public class ZhihuUtil {
         ZhihuUtil zu=new ZhihuUtil();
         zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/excited-vczh/answers",4);
     }
-
+    //下载html的线程
     class  ThreadDownloadHtml implements  Runnable{
         private int number;
         private String answerUrl;
@@ -568,6 +634,7 @@ public class ZhihuUtil {
             return parseAnswer(number,doc);
         }
     }
+    //下载图片的线程
     class ThreadDownloadImg implements Runnable{
         private String url;
         private String picName;
@@ -614,6 +681,13 @@ public class ZhihuUtil {
             }
         }
     }
+
+    /**
+     * 解析html文档。并保存到本地
+     * @param number
+     * @param doc
+     * @return
+     */
     public boolean parseAnswer(int number,Document doc){
         String fileName=String.format("%04d",number)+"."+doc.select(".zm-item-title.zm-editable-content").text()+".html";
         fileName=fileName
@@ -650,6 +724,8 @@ public class ZhihuUtil {
             return  false;
         }
     }
+
+    //打包为epub电子书
     public void pack2Epub(){
         try {
             Book book = new Book();
