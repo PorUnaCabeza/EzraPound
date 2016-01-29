@@ -494,9 +494,31 @@ public class ZhihuUtil {
     }
     public void downloadFailedItems(){
         log.info("读取下载失败列表...");
-        for (Map.Entry<Integer, String> entry : downloadHtmlFailedMap.entrySet()) {
-            log.info("编号"+entry.getKey()+"下载失败");
+        if(downloadHtmlFailedMap.size()>0){
+            threadPool = new ThreadPoolExecutor(10, 20, 3, TimeUnit.SECONDS,
+                    new ArrayBlockingQueue<Runnable>(1000), new ThreadPoolExecutor.DiscardOldestPolicy());
+            log.info("有网页下载失败,如下:");
+            for (Map.Entry<Integer, String> entry : downloadHtmlFailedMap.entrySet()) {
+                log.info("编号"+entry.getKey()+"下载失败,下面重试下载");
+                threadPool.execute(new ThreadDownloadHtml(entry.getKey(),entry.getValue()));
+            }
+            shutdownThreadPool();
+            waitThreadPoolEnd(getThreadPool());
         }
+        if(downloadImgFailedSet.size()>0){
+            threadPool = new ThreadPoolExecutor(10, 20, 3, TimeUnit.SECONDS,
+                    new ArrayBlockingQueue<Runnable>(1000), new ThreadPoolExecutor.DiscardOldestPolicy());
+            log.info("有图片下载失败,如下:");
+            Iterator i = downloadImgFailedSet.iterator();
+            while(i.hasNext()){
+                String url=(String)i.next();
+                log.info("图片"+url+"下载失败,下面重试下载");
+                threadPool.execute(new ThreadDownloadImg(url));
+            }
+            shutdownThreadPool();
+            waitThreadPoolEnd(getThreadPool());
+        }
+
     }
     public void waitThreadPoolEnd(ThreadPoolExecutor pool){
         boolean loop = true;
@@ -602,8 +624,10 @@ public class ZhihuUtil {
                 .replaceAll("\\\\","")
                 .trim();
         Element htmlContent=doc.select(".zm-editable-content.clearfix").first();
-        if(htmlContent==null)
+        if(htmlContent==null){
+            log.info("编号"+number+"网页读取到内容为空，可能为被删除的内容");
             return false;
+        }
         htmlContent.select("noscript").remove();
         Elements imgs=htmlContent.select("img");
         for(Element img:imgs){
