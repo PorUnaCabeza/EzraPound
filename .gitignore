@@ -2,4 +2,3 @@
 *.log
 *.iml
 target
-src/main/resources/mailConfig.properties
