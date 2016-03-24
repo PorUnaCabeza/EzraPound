@@ -1,4 +1,4 @@
-import net.sf.json.JSONObject;
+import org.json.JSONObject;
 import nl.siegmann.epublib.domain.Author;
 import nl.siegmann.epublib.domain.Book;
 import nl.siegmann.epublib.domain.Resource;
@@ -336,7 +336,7 @@ public class ZhihuUtil {
                 e.printStackTrace();
                 return;
             }
-            JSONObject jsonObj = JSONObject.fromString(rs.body());
+            JSONObject jsonObj = new JSONObject(rs.body());
             doc = Jsoup.parse(jsonObj.getJSONArray("msg").get(1).toString());
         }
         elmts = doc.select(".zm-profile-section-item.zm-item.clearfix");
@@ -362,7 +362,7 @@ public class ZhihuUtil {
                 log.info("-------爬取更多动态失败--------");
                 return;
             }
-            JSONObject jsonObj=JSONObject.fromString(rs.body());
+            JSONObject jsonObj=new JSONObject(rs.body());
             doc=Jsoup.parse(jsonObj.getJSONArray("msg").get(1).toString());
             elmts = doc.select(".zm-profile-section-item.zm-item.clearfix");
         }
@@ -599,7 +599,7 @@ public class ZhihuUtil {
 
     public static void main(String[] args) {
         ZhihuUtil zu=new ZhihuUtil();
-        zu.peopleAnswer2Epub(true, "https://www.zhihu.com/people/excited-vczh/answers",4);
+        zu.startWatch("https://www.zhihu.com/people/lin-shen-shi-jian-lu",3000);
     }
     //下载html的线程
     class  ThreadDownloadHtml implements  Runnable{
