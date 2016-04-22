@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
  *         --------In a Station of the Metro
  */
 public class ZhihuUtil {
-    public static final String userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:29.0) Gecko/20100101 Firefox/29.0";
+    public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36";
     private static Logger log=Logger.getLogger(ZhihuUtil.class);
     private Date date = new Date();
     public static final String HTML_DIR_ROOT = "C:/book1/";
@@ -85,7 +85,7 @@ public class ZhihuUtil {
             return false;
         }
         con = Jsoup.connect("http://www.zhihu.com").timeout(30000);
-        con.header("User-Agent", userAgent);
+        con.header("User-Agent", USER_AGENT);
         try {
             rs = con.execute();
         } catch (Exception e) {
@@ -101,10 +101,10 @@ public class ZhihuUtil {
 
     public void getCaptchaCookies() {
         captchaCookies.clear();
-        con = Jsoup.connect("https://www.zhihu.com/captcha.gif?r=" + System.currentTimeMillis())
+        con = Jsoup.connect("https://www.zhihu.com/captcha.gif?r=" + System.currentTimeMillis()+"&type=login")
                 .ignoreContentType(true)
                 .timeout(30000);//获取连接
-        con.header("User-Agent", userAgent);
+        con.header("User-Agent", USER_AGENT);
         try {
             rs = con.execute();
         } catch (Exception e) {
@@ -132,17 +132,20 @@ public class ZhihuUtil {
         log.info("请打开工程路径查看验证码并输入");
         String captcha=sc.nextLine();
         con = Jsoup.connect("https://www.zhihu.com/login/email").timeout(30000);
-        con.header("User-Agent", userAgent);
+        con.header("user-agent", USER_AGENT);
         try {
             rs = con.ignoreContentType(true).method(Connection.Method.POST)
                     .data("_xsrf", _xsrf)
                     .data("email", userName)
                     .data("password", passWord)
-                    .data("captcha", captcha).cookies(captchaCookies).execute();
+                    .data("remember_me","true")
+                    .data("captcha", captcha)
+                    .cookies(captchaCookies).execute();
         } catch (Exception e) {
             log.info("获得loginCookies失败");
             return getLoginCookies();
         }
+        log.info("登录返回:"+rs.body());
         loginCookies.putAll(rs.cookies());
         return true;
     }
@@ -175,6 +178,10 @@ public class ZhihuUtil {
      */
     public void readCookies(String filename) {
         loginCookies.clear();
+        if(!new File(filename).exists()){
+            log.info(filename+"不存在");
+            return;
+        }
         try {
             FileInputStream fis
                     = new FileInputStream(filename);
@@ -201,7 +208,7 @@ public class ZhihuUtil {
             getXsrf(0);
         readCookies("zhihu_cookies.txt");
         con = Jsoup.connect("https://www.zhihu.com").timeout(30000);//获取连接
-        con.header("User-Agent", userAgent);//配置模拟浏览器
+        con.header("User-Agent", USER_AGENT);//配置模拟浏览器
         con.cookies(loginCookies);
         try {
             rs = con.execute();
@@ -219,7 +226,7 @@ public class ZhihuUtil {
     public boolean loginByEmailAndPwd() {
         getLoginCookies();
         con = Jsoup.connect("https://www.zhihu.com");//获取连接
-        con.header("User-Agent", userAgent);//配置模拟浏览器
+        con.header("User-Agent", USER_AGENT);//配置模拟浏览器
         con.cookies(loginCookies);
         try {
             rs = con.execute();
@@ -269,7 +276,7 @@ public class ZhihuUtil {
     public void watchNews(String url) {
         login();
         con = Jsoup.connect(url).timeout(30000);//获取连接
-        con.header("User-Agent", userAgent);//配置模拟浏览器
+        con.header("User-Agent", USER_AGENT);//配置模拟浏览器
         con.cookies(loginCookies);
         con.cookie("_xsrf",_xsrf);
         try {
@@ -309,7 +316,7 @@ public class ZhihuUtil {
         login();
         if (traverseStartSign.isEmpty()) {
             con = Jsoup.connect(url).timeout(30000);//获取连接
-            con.header("User-Agent", userAgent);//配置模拟浏览器
+            con.header("User-Agent", USER_AGENT);//配置模拟浏览器
             con.cookies(loginCookies);
             try {
                 rs = con.execute();
@@ -324,7 +331,7 @@ public class ZhihuUtil {
             log.info(sdf.format(date));
             log.info("爬取因网络原因中断,现从该用户" + sdf.format(date) + "处重新爬取");
             con = Jsoup.connect(url + "/activities").method(Connection.Method.POST).timeout(3000).ignoreContentType(true);
-            con.header("User-Agent", userAgent);
+            con.header("User-Agent", USER_AGENT);
             con.data("start", traverseStartSign).data("_xsrf", _xsrf);
             con.cookies(loginCookies);
             con.cookie("_xsrf", _xsrf);
@@ -351,7 +358,7 @@ public class ZhihuUtil {
                 traverseStartSign = elmt.attr("data-time");
             }
             con = Jsoup.connect(url + "/activities").method(Connection.Method.POST).timeout(3000).ignoreContentType(true);//获取连接
-            con.header("User-Agent", userAgent);//配置模拟浏览器
+            con.header("User-Agent", USER_AGENT);//配置模拟浏览器
             con.data("start", traverseStartSign).data("_xsrf", _xsrf);
             con.cookies(loginCookies);
             con.cookie("_xsrf", _xsrf);
@@ -458,7 +465,7 @@ public class ZhihuUtil {
             answerUrl = url+"?page="+pageNum;
         }
         con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
-        con.header("User-Agent", userAgent);//配置模拟浏览器
+        con.header("User-Agent", USER_AGENT);//配置模拟浏览器
         con.cookies(loginCookies);
         try {
             rs = con.execute();
@@ -620,7 +627,7 @@ public class ZhihuUtil {
                 return false;
             }
             con = Jsoup.connect(answerUrl).timeout(30000);//获取连接
-            con.header("User-Agent", userAgent);//配置模拟浏览器
+            con.header("User-Agent", USER_AGENT);//配置模拟浏览器
             con.cookies(loginCookies);
             try {
                 log.info("编号"+number+",链接"+answerUrl+"...");
@@ -654,7 +661,7 @@ public class ZhihuUtil {
             con = Jsoup.connect(url)
                     .ignoreContentType(true)
                     .timeout(30000);//获取连接
-            con.header("User-Agent", userAgent);
+            con.header("User-Agent", USER_AGENT);
             try {
                 rs = con.execute();
             } catch (Exception e) {
