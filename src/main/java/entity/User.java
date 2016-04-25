@@ -5,7 +5,7 @@ package entity;
  */
 public class User {
     //短链接
-    private String url;
+    private String userId;
     private String name;
     //一句话介绍
     private String bio;
@@ -17,6 +17,8 @@ public class User {
     private String gender;
     //教育经历
     private String education;
+    //学习方向
+    private String educationExtra;
     //个人简介
     private String description;
     //赞同数
@@ -38,17 +40,20 @@ public class User {
     //粉丝数
     private String followers;
 
+    private String hashId;
+
     public User() {
     }
 
-    public User(String url, String name, String bio, String location, String business, String gender, String education, String description, String agree, String thanks, String asks, String answers, String posts, String collections, String logs, String following, String followers) {
-        this.url = url;
+    public User(String userId, String name, String bio, String location, String business, String gender, String education, String educationExtra, String description, String agree, String thanks, String asks, String answers, String posts, String collections, String logs, String following, String followers, String hashId) {
+        this.userId = userId;
         this.name = name;
         this.bio = bio;
         this.location = location;
         this.business = business;
         this.gender = gender;
         this.education = education;
+        this.educationExtra = educationExtra;
         this.description = description;
         this.agree = agree;
         this.thanks = thanks;
@@ -59,14 +64,15 @@ public class User {
         this.logs = logs;
         this.following = following;
         this.followers = followers;
+        this.hashId = hashId;
     }
 
-    public String getUrl() {
-        return url;
+    public String getUserId() {
+        return userId;
     }
 
-    public void setUrl(String url) {
-        this.url = url;
+    public void setUserId(String userId) {
+        this.userId = userId;
     }
 
     public String getName() {
@@ -115,6 +121,14 @@ public class User {
 
     public void setEducation(String education) {
         this.education = education;
+    }
+
+    public String getEducationExtra() {
+        return educationExtra;
+    }
+
+    public void setEducationExtra(String educationExtra) {
+        this.educationExtra = educationExtra;
     }
 
     public String getDescription() {
@@ -195,5 +209,38 @@ public class User {
 
     public void setFollowers(String followers) {
         this.followers = followers;
+    }
+
+    public String getHashId() {
+        return hashId;
+    }
+
+    public void setHashId(String hashId) {
+        this.hashId = hashId;
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "userId='" + userId + '\'' +
+                ", name='" + name + '\'' +
+                ", bio='" + bio + '\'' +
+                ", location='" + location + '\'' +
+                ", business='" + business + '\'' +
+                ", gender='" + gender + '\'' +
+                ", education='" + education + '\'' +
+                ", educationExtra='" + educationExtra + '\'' +
+                ", description='" + description + '\'' +
+                ", agree='" + agree + '\'' +
+                ", thanks='" + thanks + '\'' +
+                ", asks='" + asks + '\'' +
+                ", answers='" + answers + '\'' +
+                ", posts='" + posts + '\'' +
+                ", collections='" + collections + '\'' +
+                ", logs='" + logs + '\'' +
+                ", following='" + following + '\'' +
+                ", followers='" + followers + '\'' +
+                ", hashId='" + hashId + '\'' +
+                '}';
     }
 }
