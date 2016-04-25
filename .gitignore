@@ -2,3 +2,5 @@
 *.log
 *.iml
 target
+*.gif
+*.txt
