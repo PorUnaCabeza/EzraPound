@@ -1,5 +1,8 @@
 package thread;
 
+import dao.ZhihuDao;
+import entity.UserRelation;
+import filter.RedisFilter;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.jsoup.Connection;
@@ -8,11 +11,11 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Jedis;
-import util.JedisUtil;
 import util.JsoupUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,19 +23,28 @@ import java.util.Map;
  */
 public class FollowingTask implements Runnable{
     private static Logger log= LoggerFactory.getLogger(FollowingTask.class);
-    private static Jedis jedis=JedisUtil.getJedis();
     private String params;
     private String xsrf;
     private Map<String,String> loginCookies;
+    private String userId;
+    private String userName;
 
-    public FollowingTask(String params, String xsrf, Map<String, String> loginCookies) {
+    public FollowingTask(String params, String xsrf, Map<String, String> loginCookies, String userId, String userName) {
         this.params = params;
         this.xsrf = xsrf;
         this.loginCookies = loginCookies;
+        this.userId = userId;
+        this.userName = userName;
     }
 
     @Override
     public void run() {
+        getFollowingInfo(0);
+    }
+    public boolean getFollowingInfo(int times){
+        if(times>2){
+            return false;
+        }
         Connection con= JsoupUtil.getPostCon("https://www.zhihu.com/node/ProfileFolloweesListV2");
         Response rs=null;
         try {
@@ -44,18 +56,21 @@ public class FollowingTask implements Runnable{
                     .data("params", params)
                     .execute();
         } catch (IOException e) {
-            e.printStackTrace();
-            log.info(params+"拉取失败");
-            return;
+            log.info(params+"第"+times+"次拉取失败");
+            return getFollowingInfo(++times);
         }
         JSONObject jsonObject=new JSONObject(rs.body());
         JSONArray jsonArray=jsonObject.getJSONArray("msg");
+        List<UserRelation> list=new ArrayList<>();
         for(int i=0;i<jsonArray.length();i++){
             Document doc= Jsoup.parse(jsonArray.get(i).toString());
             String name = doc.select(".zm-list-content-title a").attr("title");
             String shortUrl = doc.select(".zm-list-content-title a").attr("href").replaceAll("https://www.zhihu.com/people/", "");
             log.info(name+"|"+shortUrl);
-            jedis.sadd("queue",shortUrl);
+            RedisFilter.addQueue(shortUrl);
+            list.add(new UserRelation(userId,userName,shortUrl,name));
         }
+        ZhihuDao.saveUserRelations(list);
+        return true;
     }
 }

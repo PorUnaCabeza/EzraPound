@@ -1,5 +1,6 @@
 package thread;
 
+import dao.ZhihuDao;
 import entity.User;
 import filter.RedisFilter;
 import org.json.JSONObject;
@@ -22,6 +23,7 @@ public class UserInfoTask implements Runnable{
     private Map<String,String> loginCookies;
     private String userId;
     private ThreadPool threadPool;
+    private int deep;
 
     public UserInfoTask(String xsrf, Map<String, String> loginCookies, String userId, ThreadPool threadPool) {
         this.xsrf = xsrf;
@@ -32,12 +34,19 @@ public class UserInfoTask implements Runnable{
 
     @Override
     public void run() {
+        getUserInfo(0);
+    }
+    public boolean getUserInfo(int times){
+        if(times>2){
+            return false;
+        }
         Connection con = JsoupUtil.getGetCon("https://www.zhihu.com/people/" + userId);
         Connection.Response rs = null;
         try {
             rs = con.cookies(loginCookies).execute();
         } catch (IOException e) {
-            e.printStackTrace();
+            log.info(userId + "第" + times + "次拉取失败");
+            return getUserInfo(++times);
         }
         Document doc = Jsoup.parse(rs.body());
         String name = doc.select(".zm-profile-header-main .name").text();
@@ -69,9 +78,13 @@ public class UserInfoTask implements Runnable{
         jsonObject.put("offset", 0);
         jsonObject.put("order_by", "created");
         jsonObject.put("hash_id",hashId);
+
+        ZhihuDao.saveUserInfo(user);
+
         for(int i=0;i<Integer.parseInt(following);i+=20){
             jsonObject.put("offset",i);
-            threadPool.execute(new FollowingTask(jsonObject.toString(),xsrf,loginCookies));
+            threadPool.execute(new FollowingTask(jsonObject.toString(),xsrf,loginCookies,userId,name));
         }
+        return true;
     }
 }

@@ -1,0 +1,65 @@
+--[saveUserInfo]
+INSERT INTO user(
+        user_id,
+        name,
+        bio,
+        location,
+        business,
+        gender,
+        education,
+        education_extra,
+        description,
+        agree,
+        thanks,
+        asks,
+        answers,
+        posts,
+        collections,
+        logs,
+        following,
+        followers,
+        hash_id,
+        create_time
+    )
+    VALUES(
+        #userId#,
+        #name#,
+        #bio#,
+        #location#,
+        #business#,
+        #gender#,
+        #education#,
+        #educationExtra#,
+        #description#,
+        #agree#,
+        #thanks#,
+        #asks#,
+        #answers#,
+        #posts#,
+        #collections#,
+        #logs#,
+        #following#,
+        #followers#,
+        #hashId#,
+        now()
+    );
+--[saveUserRelations]
+INSERT INTO relation(
+                user_id,
+                user_name,
+                followee_id,
+                followee_name,
+                create_time
+            )
+            VALUES(
+                #userId#,
+                #userName#,
+                #followeeId#,
+                #followeeName#,
+                now()
+            );
+--[clearUser]
+truncate user;
+
+--[clearRelation]
+truncate relation

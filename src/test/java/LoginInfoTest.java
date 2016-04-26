@@ -38,27 +38,6 @@ public class LoginInfoTest {
     }
 
 
-    public static void main(String[] args) {
-        Jedis jedis=JedisUtil.getJedis();
-        LoginInfo loginInfo1=new LoginInfo();
-        loginInfo1.login();
-        String userId="lin-shen-shi-jian-lu";
-        RedisFilter.put(userId);
-        ThreadPool threadPool=ThreadPool.getThreadPool(30);
-        threadPool.execute(new UserInfoTask(loginInfo1.getXsrf(),loginInfo1.getLoginCookies(),userId,threadPool));
-        while(true){
-            try {
-                if(threadPool.getWaitTasknumber()<50){
-                    String url=jedis.spop("queue");
-                    if(!RedisFilter.put(url))
-                        threadPool.execute(new UserInfoTask(loginInfo1.getXsrf(),loginInfo1.getLoginCookies(),url,threadPool));
-                }
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
 
     @Test
     public void followingsTest() {
