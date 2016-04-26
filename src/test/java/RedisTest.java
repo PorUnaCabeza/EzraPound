@@ -15,7 +15,7 @@ public class RedisTest {
     @Test
     public void get(){
         Jedis jedis= JedisUtil.getJedis();
-        System.out.println(jedis.get("country"));
+        System.out.println(jedis.smembers("queue"));
         JedisUtil.returnResource(jedis);
     }
 }
