@@ -1,12 +1,14 @@
 package util;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Created by Cabeza on 2016/4/25.
  */
 public class EzraPoundUtil {
     public static final String CAPTCHA_DIR="cabeza.gif";
     public static final String LOGIN_COOKIES_DIR="zhihu_cookies.txt";
-
+    public static AtomicInteger finishedUserCount=new AtomicInteger(0);
     public static String unicode2Character(String str)
     {
         str = (str == null ? "" : str);

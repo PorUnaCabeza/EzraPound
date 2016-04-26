@@ -19,6 +19,7 @@ import util.JsoupUtil;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by Cabeza on 2016/4/25.
@@ -138,7 +139,20 @@ public class LoginInfoTest {
     }
     @Test
     public void subString(){
-        String str="lin-shen-shi-jian-lu|6912448d634fabe66777290b6add0ea5";
-        log.info(str.split("\\|")[1]);
+        String str="lin-shen-shi-jian-lu001";
+        String deep=str.substring(str.length() - 3);
+        String url=str.substring(0, str.length() - 3);
+        log.info(deep);
+        log.info(url);
+        log.info(String.format("%03d", 1));
+    }
+    @Test
+    public void atomicIntegerTest(){
+        AtomicInteger atomicInteger=new AtomicInteger(0);
+        log.info(atomicInteger.get()+"");
+        atomicInteger.incrementAndGet();
+        log.info(atomicInteger.get()+"");
+        atomicInteger.incrementAndGet();
+        log.info(atomicInteger.get()+"");
     }
 }

@@ -9,6 +9,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.EzraPoundUtil;
 import util.JsoupUtil;
 
 import java.io.IOException;
@@ -85,6 +86,7 @@ public class UserInfoTask implements Runnable{
             jsonObject.put("offset",i);
             threadPool.execute(new FollowingTask(jsonObject.toString(),xsrf,loginCookies,userId,name));
         }
+        EzraPoundUtil.finishedUserCount.incrementAndGet();
         return true;
     }
 }
