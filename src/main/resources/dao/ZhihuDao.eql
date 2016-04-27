@@ -65,4 +65,10 @@ truncate user;
 truncate relation
 
 --[queryUserList]
-SELECT user_id FROM user
+SELECT user_id
+       FROM user
+    ORDER BY create_time
+
+--[queryUserCount]
+SELECT COUNT(user_id)
+       FROM user

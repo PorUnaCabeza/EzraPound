@@ -1,14 +1,48 @@
 package util;
 
+import dao.ZhihuDao;
+import org.n3r.eql.EqlPage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
+
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by Cabeza on 2016/4/25.
  */
 public class EzraPoundUtil {
+    private static Logger log= LoggerFactory.getLogger(EzraPoundUtil.class);
     public static final String CAPTCHA_DIR="cabeza.gif";
     public static final String LOGIN_COOKIES_DIR="zhihu_cookies.txt";
     public static AtomicInteger finishedUserCount=new AtomicInteger(0);
+
+
+    public static void rebuildFilter(){
+        Jedis jedis=JedisUtil.getJedis();
+        jedis.del("filter");
+
+        int userCount=ZhihuDao.queryUserCount();
+        int rebuildCount=0;
+
+        log.info("总数:" + userCount);
+        int pageNum=5000;
+        EqlPage eqlPage=new EqlPage(0,pageNum);
+        List<String> list;
+        for(int i=0;i<userCount;i+=pageNum){
+            eqlPage.setStartIndex(i);
+            list= ZhihuDao.queryUserList(eqlPage);
+            for (String str : list) {
+                jedis.sadd("filter", str);
+            }
+            rebuildCount+=list.size();
+            log.info("已添加"+rebuildCount+"条");
+        }
+        log.info("重建完毕!");
+        JedisUtil.returnResource(jedis);
+    }
+
     public static String unicode2Character(String str)
     {
         str = (str == null ? "" : str);

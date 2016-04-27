@@ -10,6 +10,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.junit.Test;
+import org.n3r.eql.EqlPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
@@ -159,13 +160,16 @@ public class LoginInfoTest {
     }
 
     @Test
-    public void rebuildFilterTest(){
-        List<String> list= ZhihuDao.queryUserList();
-        Jedis jedis=JedisUtil.getJedis();
-        jedis.del("filter");
-        for(String str:list){
-            jedis.sadd("filter",str);
+    public void getUserListTest(){
+        int count=ZhihuDao.queryUserCount();
+        log.info("总数:"+count);
+        int pageNum=100;
+        EqlPage eqlPage=new EqlPage(0,pageNum);
+        List<String> list;
+        for(int i=0;i<count;i+=100){
+            eqlPage.setStartIndex(i);
+            list= ZhihuDao.queryUserList(eqlPage);
+            log.info(list.size()+"");
         }
-        JedisUtil.returnResource(jedis);
     }
 }

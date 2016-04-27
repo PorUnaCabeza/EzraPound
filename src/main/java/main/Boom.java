@@ -22,9 +22,9 @@ public class Boom {
         ThreadPool threadPool = ThreadPool.getThreadPool(30);
         LoginInfo loginInfo = new LoginInfo();
         loginInfo.login();
-        System.out.println("请输入1或2 (1:种子模式  2:继续上次爬取)");
+        System.out.println("请输入zxcvbnm或2 (zxcvbnm:种子模式  2:继续上次爬取)");
         String opt = sc.nextLine();
-        if (opt.equals("1")) {
+        if (opt.equals("zxcvbnm")) {
             jedis.flushAll();
             ZhihuDao.clearDatabases();
             System.out.println("请输入种子用户的短链接");
@@ -51,11 +51,7 @@ public class Boom {
         } else if (opt.equals("2")) {
             System.out.println("是否重建过滤器表:1是,2否");
             if (sc.nextLine().equals("1")) {
-                List<String> list = ZhihuDao.queryUserList();
-                jedis.del("filter");
-                for (String str : list) {
-                    jedis.sadd("filter", str);
-                }
+               EzraPoundUtil.rebuildFilter();
             }
             while (true) {
                 try {

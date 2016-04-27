@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration>
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] tenantId=%X{tenantId} %-5level %logger %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="DEBUG">
+        <appender-ref ref="Console"/>
+    </root>
+
+    <logger name="eql" level="DEBUG" additivity="false">
+        <appender-ref ref="Console"/>
+    </logger>
+
+    <logger name="eql.org.n3r.eql.SimpleInDynamicCondition" level="INFO" additivity="false">
+        <appender-ref ref="Console"/>
+    </logger>
+
+</configuration>
+

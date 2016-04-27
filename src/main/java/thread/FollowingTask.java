@@ -42,7 +42,7 @@ public class FollowingTask implements Runnable{
         getFollowingInfo(0);
     }
     public boolean getFollowingInfo(int times){
-        if(times>2){
+        if(times>3){
             return false;
         }
         Connection con= JsoupUtil.getPostCon("https://www.zhihu.com/node/ProfileFolloweesListV2");

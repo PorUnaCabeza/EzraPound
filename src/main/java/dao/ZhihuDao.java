@@ -3,6 +3,7 @@ package dao;
 import entity.User;
 import entity.UserRelation;
 import org.n3r.eql.Eql;
+import org.n3r.eql.EqlPage;
 import org.n3r.eql.EqlTran;
 import org.n3r.eql.impl.EqlBatch;
 import org.n3r.eql.util.Closes;
@@ -23,6 +24,7 @@ public class ZhihuDao {
         Eql eql=new Eql();
         EqlTran eqlTran = eql.newTran();
         eqlTran.start();
+        EqlPage eqlPage=new EqlPage();
         EqlBatch eqlBatch=new EqlBatch();
         for(UserRelation userRelation:list){
             eql.useBatch(eqlBatch).useTran(eqlTran).insert("saveUserRelations").params(userRelation).execute();
@@ -37,7 +39,11 @@ public class ZhihuDao {
         new Eql().id("clearRelation").execute();
     }
 
-    public static List<String> queryUserList(){
-        return new Eql().id("queryUserList").returnType(String.class).execute();
+    public static List<String> queryUserList(EqlPage eqlPage){
+        return new Eql().id("queryUserList").limit(eqlPage).returnType(String.class).execute();
+    }
+
+    public static Integer queryUserCount(){
+        return new Eql().selectFirst("queryUserCount").returnType(Integer.class).execute();
     }
 }
