@@ -1,3 +1,4 @@
+import dao.ZhihuDao;
 import entity.LoginInfo;
 import entity.User;
 import filter.RedisFilter;
@@ -19,6 +20,7 @@ import util.JsoupUtil;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -154,5 +156,16 @@ public class LoginInfoTest {
         log.info(atomicInteger.get()+"");
         atomicInteger.incrementAndGet();
         log.info(atomicInteger.get()+"");
+    }
+
+    @Test
+    public void rebuildFilterTest(){
+        List<String> list= ZhihuDao.queryUserList();
+        Jedis jedis=JedisUtil.getJedis();
+        jedis.del("filter");
+        for(String str:list){
+            jedis.sadd("filter",str);
+        }
+        JedisUtil.returnResource(jedis);
     }
 }

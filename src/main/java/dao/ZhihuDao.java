@@ -36,4 +36,8 @@ public class ZhihuDao {
         new Eql().id("clearUser").execute();
         new Eql().id("clearRelation").execute();
     }
+
+    public static List<String> queryUserList(){
+        return new Eql().id("queryUserList").returnType(String.class).execute();
+    }
 }

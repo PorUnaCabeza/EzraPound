@@ -9,7 +9,9 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
 import util.EzraPoundUtil;
+import util.JedisUtil;
 import util.JsoupUtil;
 
 import java.io.IOException;
@@ -38,7 +40,10 @@ public class UserInfoTask implements Runnable{
         getUserInfo(0);
     }
     public boolean getUserInfo(int times){
-        if(times>2){
+        if(times>3){
+            Jedis jedis= JedisUtil.getJedis();
+            jedis.srem("filter",userId);
+            JedisUtil.returnResource(jedis);
             return false;
         }
         Connection con = JsoupUtil.getGetCon("https://www.zhihu.com/people/" + userId);

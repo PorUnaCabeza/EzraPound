@@ -63,3 +63,6 @@ truncate user;
 
 --[clearRelation]
 truncate relation
+
+--[queryUserList]
+SELECT user_id FROM user

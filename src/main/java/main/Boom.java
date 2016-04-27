@@ -9,6 +9,7 @@ import thread.UserInfoTask;
 import util.EzraPoundUtil;
 import util.JedisUtil;
 
+import java.util.List;
 import java.util.Scanner;
 
 /**
@@ -32,7 +33,7 @@ public class Boom {
             threadPool.execute(new UserInfoTask(loginInfo.getXsrf(), loginInfo.getLoginCookies(), userId, threadPool));
             while (true) {
                 try {
-                    if(EzraPoundUtil.finishedUserCount.get()>200000){
+                    if (EzraPoundUtil.finishedUserCount.get() > 200000) {
                         threadPool.destroy();
                         System.exit(0);
                     }
@@ -47,7 +48,15 @@ public class Boom {
                     e.printStackTrace();
                 }
             }
-        }else if(opt.equals("2")){
+        } else if (opt.equals("2")) {
+            System.out.println("是否重建过滤器表:1是,2否");
+            if (sc.nextLine().equals("1")) {
+                List<String> list = ZhihuDao.queryUserList();
+                jedis.del("filter");
+                for (String str : list) {
+                    jedis.sadd("filter", str);
+                }
+            }
             while (true) {
                 try {
                     if (threadPool.getWaitTasknumber() < 50) {
