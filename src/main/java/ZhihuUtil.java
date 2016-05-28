@@ -30,6 +30,11 @@ import java.util.concurrent.TimeUnit;
  * Petals on a wet, black bough.
  *         --------In a Station of the Metro
  */
+
+/**
+ * 历史遗留文件，后续将删除
+ */
+@Deprecated
 public class ZhihuUtil {
     public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36";
     private static Logger log=Logger.getLogger(ZhihuUtil.class);
