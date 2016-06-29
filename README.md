@@ -1,3 +1,6 @@
+在学习jsoup与redis时写的一个zhihu爬虫玩具，自己已经爬取了45万条用户数据，2300多万条用户关系数据
+
+----
 
 ### 使用方法
 
@@ -14,7 +17,9 @@
 
 ### 相关介绍
 
-- 参加我的博客
+- src/main/java/ZhihuUtil.java为程序第一版本 那时还是把所有东西扔进一个类里的菜比。
+
+- 更多介绍参见我的博客
 <a href="http://cabeza.cn" target="_blank">cabeza.cn</a>
 
 ----
