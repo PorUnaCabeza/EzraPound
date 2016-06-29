@@ -10,14 +10,14 @@
 ### 注意事项
 
 1. 程序中所谓“种子模式”即清空所有数据重新爬取
-2. 关于程序中所谓“短链接”。如某人主页url为“www.zhihu.com/people/li-shao-quan-18”，那么“li-shao-quan-18”即为他的短链接
+2. 关于程序中所谓“短链接”。如某人主页url为www.zhihu.com/people/li-shao-quan-18，那么li-shao-quan-18即为他的短链接
 
 ### 相关介绍
 
 - 参加我的博客
 <a href="http://cabeza.cn" target="_blank">cabeza.cn</a>
 
-
+----
 
 
 >Ezra Weston Loomis Pound (30 October 1885 – 1 November 1972) was an expatriate American poet and critic who was a major figure in the early modernist movement. His contribution to poetry began with his development of Imagism, a movement derived from classical Chinese and Japanese poetry, stressing clarity, precision and economy of language. His best-known works include Ripostes (1912), Hugh Selwyn Mauberley (1920) and the unfinished 120-section epic, The Cantos (1917–69).
