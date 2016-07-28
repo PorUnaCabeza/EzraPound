@@ -12,8 +12,8 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import util.epub.Constants;
 import util.epub.service.MediatypeService;
-import net.sf.jazzlib.ZipEntry;
-import net.sf.jazzlib.ZipInputStream;
+import util.jazzlib.ZipEntry;
+import util.jazzlib.ZipInputStream;
 import util.epub.domain.MediaType;
 import util.epub.domain.Resource;
 import util.epub.epub.EpubProcessorSupport;

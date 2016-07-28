@@ -12,10 +12,10 @@ import util.epub.domain.Resources;
 import util.epub.service.MediatypeService;
 import util.epub.util.CollectionUtil;
 import util.epub.util.ResourceUtil;
-import net.sf.jazzlib.ZipEntry;
-import net.sf.jazzlib.ZipException;
-import net.sf.jazzlib.ZipFile;
-import net.sf.jazzlib.ZipInputStream;
+import util.jazzlib.ZipEntry;
+import util.jazzlib.ZipException;
+import util.jazzlib.ZipFile;
+import util.jazzlib.ZipInputStream;
 import util.epub.domain.MediaType;
 import util.epub.domain.Resource;
 

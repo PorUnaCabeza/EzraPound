@@ -11,8 +11,8 @@ import util.epub.domain.Resources;
 import util.epub.service.MediatypeService;
 import util.epub.util.ResourceUtil;
 import util.epub.util.StringUtil;
-import net.sf.jazzlib.ZipFile;
-import net.sf.jazzlib.ZipInputStream;
+import util.jazzlib.ZipFile;
+import util.jazzlib.ZipInputStream;
 import util.epub.domain.MediaType;
 import util.epub.domain.Resource;
 
